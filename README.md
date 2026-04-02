@@ -1,5 +1,5 @@
-# Project Members
-- Student ID: 624774
+# Project Members in Group 67
+- Student ID: 6429774
 
 # Cardio Data Simulator
 
