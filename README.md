@@ -4,7 +4,16 @@
 
 # Cardio Data Simulator
 
-The Cardio Data Simulator is a Java-based application designed to simulate real-time cardiovascular data for multiple patients. This tool is particularly useful for educational purposes, enabling students to interact with real-time data streams of ECG, blood pressure, blood saturation, and other cardiovascular signals.
+# UML_models-documentation
+
+Data Storage System
+
+The Data Storage System is responsible for storing and managing all patient data. The main class, DataStorage, keeps track of patients using a map where each patient ID is linked to a Patient object. Each Patient contains a list of PatientRecord objects, where each record represents one measurement at a specific time, such as heart rate or blood pressure. New data is added using the addPatientData method, which creates a new patient if needed or updates an existing one. Data can be retrieved using the getRecords method, which allows filtering by patient ID and time range. This is useful for both real-time monitoring and looking at past data. The system also includes an AccessController to make sure only authorized users can access sensitive data. The DataRetriever class is used by medical staff to request data in a controlled way. A RetentionPolicy is used to remove old data after a certain time, helping manage storage. An AuditLog records who accesses the data, which improves security and traceability. Overall, the system is designed to be secure, organized, and easy to use.
+
+
+Data Access Layer
+
+The Data Access Layer is responsible for receiving data from external sources and preparing it for use in the system. The DataListener interface defines how data is received, and there are different implementations such as TCPDataListener, WebSocketDataListener, and FileDataListener. This allows the system to work with different data sources without changing other parts of the system. Once the data is received, it is passed to the DataParser, which converts the raw data into a structured format called PatientRecord. This ensures that all data is consistent and easy to use. The DataSourceAdapter connects everything together by reading data from a listener, sending it to the parser, and then storing it in DataStorage. The DataReader interface provides a general way to load data into the system. Each component has a clear responsibility, which keeps the system simple and flexible. This design makes it easy to add new data sources in the future without affecting the rest of the system. Overall, the Data Access Layer ensures smooth and reliable data flow into the system.
 
 ## Features
 
