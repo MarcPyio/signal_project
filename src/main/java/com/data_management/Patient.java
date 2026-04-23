@@ -62,4 +62,7 @@ public class Patient {
         }
         return filteredRecords;
     }
+    public int getPatientId(){
+        return patientId;
+    }
 }
