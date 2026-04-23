@@ -121,4 +121,121 @@ class AlertGeneratorTest {
         Patient patient = storage.getAllPatients().get(0);
         assertDoesNotThrow(() -> alertGenerator.evaluateData(patient));
     }
+    @Test
+    void testEmptyPatientData() {
+        // Patient exists but has no records. Ensures loops don't throw exceptions.
+        Patient emptyPatient = new Patient(99);
+        assertDoesNotThrow(() -> alertGenerator.evaluateData(emptyPatient));
+    }
+
+    @Test
+    void testBloodPressureExactBoundaries() {
+        // Exact thresholds should NOT trigger alerts (> 180, < 90, > 120, < 60)
+        storage.addPatientData(1, 180.0, "SystolicPressure", 1000L);
+        storage.addPatientData(1, 90.0, "SystolicPressure", 2000L);
+        storage.addPatientData(1, 120.0, "DiastolicPressure", 3000L);
+        storage.addPatientData(1, 60.0, "DiastolicPressure", 4000L);
+        Patient patient = storage.getAllPatients().get(0);
+        assertDoesNotThrow(() -> alertGenerator.evaluateData(patient));
+    }
+
+    @Test
+    void testBPTrendExactChangeAndBrokenTrend() {
+        // Exact 10 mmHg change (should not trigger)
+        storage.addPatientData(1, 100.0, "SystolicPressure", 1000L);
+        storage.addPatientData(1, 110.0, "SystolicPressure", 2000L);
+        storage.addPatientData(1, 120.0, "SystolicPressure", 3000L);
+
+        // Broken trend: goes up >10, then drops (should not trigger)
+        storage.addPatientData(2, 100.0, "DiastolicPressure", 1000L);
+        storage.addPatientData(2, 120.0, "DiastolicPressure", 2000L);
+        storage.addPatientData(2, 115.0, "DiastolicPressure", 3000L);
+
+        // Insufficient data points (only 2 records, loop won't execute body)
+        storage.addPatientData(3, 100.0, "SystolicPressure", 1000L);
+        storage.addPatientData(3, 130.0, "SystolicPressure", 2000L);
+
+        assertDoesNotThrow(() -> alertGenerator.evaluateData(storage.getAllPatients().get(0)));
+        assertDoesNotThrow(() -> alertGenerator.evaluateData(storage.getAllPatients().get(1)));
+        assertDoesNotThrow(() -> alertGenerator.evaluateData(storage.getAllPatients().get(2)));
+    }
+
+    @Test
+    void testSaturationExactThresholdAndSubtleDrop() {
+        // Exact threshold of 92 (should not trigger < 92)
+        storage.addPatientData(1, 92.0, "Saturation", 1000L);
+
+        // Drop of exactly 4.9% (should not trigger >= 5)
+        storage.addPatientData(1, 97.0, "Saturation", 2000L);
+        storage.addPatientData(1, 92.1, "Saturation", 3000L);
+
+        Patient patient = storage.getAllPatients().get(0);
+        assertDoesNotThrow(() -> alertGenerator.evaluateData(patient));
+    }
+
+    @Test
+    void testSaturationDropOutsideTimeWindow() {
+        // Drop of 5%, but it took 10 minutes and 1 millisecond
+        long startTime = 1000000L;
+        long outsideWindowTime = startTime + (10 * 60 * 1000) + 1;
+
+        storage.addPatientData(1, 97.0, "Saturation", startTime);
+        storage.addPatientData(1, 91.0, "Saturation", outsideWindowTime);
+
+        Patient patient = storage.getAllPatients().get(0);
+        assertDoesNotThrow(() -> alertGenerator.evaluateData(patient));
+    }
+
+    @Test
+    void testHypotensiveHypoxemiaPartialConditions() {
+        // Only Low BP
+        storage.addPatientData(1, 85.0, "SystolicPressure", 1000L);
+        storage.addPatientData(1, 95.0, "Saturation", 1000L);
+
+        // Only Low Saturation
+        storage.addPatientData(2, 110.0, "SystolicPressure", 2000L);
+        storage.addPatientData(2, 90.0, "Saturation", 2000L);
+
+        assertDoesNotThrow(() -> alertGenerator.evaluateData(storage.getAllPatients().get(0)));
+        assertDoesNotThrow(() -> alertGenerator.evaluateData(storage.getAllPatients().get(1)));
+    }
+
+    @Test
+    void testECGInsufficientWindowAndExactAverage() {
+        // Exactly 10 records (loop condition i < ecg.size() fails, window = 10)
+        for (int i = 0; i < 10; i++) {
+            storage.addPatientData(1, 2.0, "ECG", 1000L + i);
+        }
+
+        // 11th record is exactly 1.5x the average of the first 10
+        // Average of ten 2.0s is 2.0. 1.5x average = 3.0.
+        // Code checks for > 3.0, so exactly 3.0 should not trigger.
+        storage.addPatientData(1, 3.0, "ECG", 2000L);
+
+        Patient patient = storage.getAllPatients().get(0);
+        assertDoesNotThrow(() -> alertGenerator.evaluateData(patient));
+    }
+
+    @Test
+    void testUntriggeredAlertButton() {
+        // Value other than 1.0
+        storage.addPatientData(1, 0.0, "Alert", 1000L);
+        Patient patient = storage.getAllPatients().get(0);
+        assertDoesNotThrow(() -> alertGenerator.evaluateData(patient));
+    }
+    @Test
+    void testDecreasingBPTrendExactChangeAndBrokenTrend() {
+        // Condition A fails: Exact 10 mmHg drop (130 -> 120 is exactly 10, not > 10)
+        storage.addPatientData(1, 130.0, "SystolicPressure", 1000L);
+        storage.addPatientData(1, 120.0, "SystolicPressure", 2000L);
+        storage.addPatientData(1, 110.0, "SystolicPressure", 3000L);
+
+        // Condition B fails: Drops >10, but then drops <10 (130 -> 110 is 20, but 110 -> 105 is 5)
+        storage.addPatientData(2, 130.0, "DiastolicPressure", 1000L);
+        storage.addPatientData(2, 110.0, "DiastolicPressure", 2000L);
+        storage.addPatientData(2, 105.0, "DiastolicPressure", 3000L);
+
+        assertDoesNotThrow(() -> alertGenerator.evaluateData(storage.getAllPatients().get(0)));
+        assertDoesNotThrow(() -> alertGenerator.evaluateData(storage.getAllPatients().get(1)));
+    }
 }
