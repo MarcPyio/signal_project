@@ -2,13 +2,11 @@ package com.alerts;
 
 import com.data_management.DataStorage;
 import com.data_management.Patient;
+import com.data_management.PatientRecord;
 
-/**
- * The {@code AlertGenerator} class is responsible for monitoring patient data
- * and generating alerts when certain predefined conditions are met. This class
- * relies on a {@link DataStorage} instance to access patient data and evaluate
- * it against specific health criteria.
- */
+import java.util.ArrayList;
+import java.util.List;
+
 public class AlertGenerator {
     private DataStorage dataStorage;
 
@@ -35,7 +33,14 @@ public class AlertGenerator {
      * @param patient the patient data to evaluate for alert conditions
      */
     public void evaluateData(Patient patient) {
-        // Implementation goes here
+        long now = System.currentTimeMillis();
+        List<PatientRecord> records = dataStorage.getRecords(patient.getPatientId(), 0, now);
+
+        checkBloodPressure(patient, records);
+        checkBloodSaturation(patient, records, now);
+        checkHypotensiveHypoxemia(patient, records);
+        checkECG(patient, records);
+        checkTriggeredAlert(patient, records);
     }
 
     /**
@@ -47,6 +52,161 @@ public class AlertGenerator {
      * @param alert the alert object containing details about the alert condition
      */
     private void triggerAlert(Alert alert) {
-        // Implementation might involve logging the alert or notifying staff
+        System.out.println("ALERT: Patient " + alert.getPatientId()
+                + " | " + alert.getCondition()
+                + " | Time: " + alert.getTimestamp());
+    }
+
+    /**
+     * Checks blood pressure records for critical thresholds and trends.
+     * Triggers alerts if systolic pressure exceeds 180 or drops below 90 mmHg,
+     * or if diastolic pressure exceeds 120 or drops below 60 mmHg.
+     *
+     * @param patient the patient to evaluate
+     * @param records all records for the patient
+     */
+    private void checkBloodPressure(Patient patient, List<PatientRecord> records) {
+        List<PatientRecord> systolic = filterByType(records, "SystolicPressure");
+        List<PatientRecord> diastolic = filterByType(records, "DiastolicPressure");
+
+        // Critical thresholds
+        for (PatientRecord r : systolic) {
+            if (r.getMeasurementValue() > 180)
+                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Systolic BP Too High", r.getTimestamp()));
+            if (r.getMeasurementValue() < 90)
+                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Systolic BP Too Low", r.getTimestamp()));
+        }
+        for (PatientRecord r : diastolic) {
+            if (r.getMeasurementValue() > 120)
+                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Diastolic BP Too High", r.getTimestamp()));
+            if (r.getMeasurementValue() < 60)
+                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Diastolic BP Too Low", r.getTimestamp()));
+        }
+
+        // Trend alerts
+        checkTrend(patient, systolic, "Systolic");
+        checkTrend(patient, diastolic, "Diastolic");
+    }
+
+    /**
+     * Checks for a consistent increasing or decreasing trend across three
+     * consecutive blood pressure readings, where each changes by more than 10 mmHg.
+     *
+     * @param patient the patient to evaluate
+     * @param records filtered blood pressure records (systolic or diastolic)
+     * @param type    label for the type of pressure ("Systolic" or "Diastolic")
+     */
+    private void checkTrend(Patient patient, List<PatientRecord> records, String type) {
+        for (int i = 2; i < records.size(); i++) {
+            double a = records.get(i - 2).getMeasurementValue();
+            double b = records.get(i - 1).getMeasurementValue();
+            double c = records.get(i).getMeasurementValue();
+
+            if (b - a > 10 && c - b > 10)
+                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), type + " BP Increasing", records.get(i).getTimestamp()));
+            if (a - b > 10 && b - c > 10)
+                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), type + " BP Decreasing", records.get(i).getTimestamp()));
+        }
+    }
+
+    /**
+     * Checks blood oxygen saturation records for low saturation (below 92%)
+     * and rapid drops of 5% or more within a 10-minute window.
+     *
+     * @param patient    the patient to evaluate
+     * @param records    all records for the patient
+     * @param now        the current time in milliseconds
+     */
+    private void checkBloodSaturation(Patient patient, List<PatientRecord> records, long now) {
+        List<PatientRecord> satRecords = filterByType(records, "Saturation");
+
+        for (PatientRecord r : satRecords) {
+            // Low saturation alert
+            if (r.getMeasurementValue() < 92)
+                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Low Blood Saturation", r.getTimestamp()));
+
+            // Rapid drop alert - check within 10 minute window
+            long tenMinAgo = r.getTimestamp() - (10 * 60 * 1000);
+            for (PatientRecord prev : satRecords) {
+                if (prev.getTimestamp() >= tenMinAgo && prev.getTimestamp() < r.getTimestamp()) {
+                    if (prev.getMeasurementValue() - r.getMeasurementValue() >= 5)
+                        triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Rapid Saturation Drop", r.getTimestamp()));
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks for Hypotensive Hypoxemia by detecting if the patient simultaneously
+     * has a systolic blood pressure below 90 mmHg and blood oxygen saturation
+     * below 92%.
+     *
+     * @param patient the patient to evaluate
+     * @param records all records for the patient
+     */
+    private void checkHypotensiveHypoxemia(Patient patient, List<PatientRecord> records) {
+        boolean lowBP = false;
+        boolean lowSat = false;
+
+        for (PatientRecord r : filterByType(records, "SystolicPressure"))
+            if (r.getMeasurementValue() < 90) lowBP = true;
+
+        for (PatientRecord r : filterByType(records, "Saturation"))
+            if (r.getMeasurementValue() < 92) lowSat = true;
+
+        // Trigger alert only if both conditions are met simultaneously
+        if (lowBP && lowSat)
+            triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Hypotensive Hypoxemia", System.currentTimeMillis()));
+    }
+
+    /**
+     * Checks ECG data for abnormal peaks using a sliding window average.
+     * Triggers an alert if a reading exceeds 1.5x the current window average.
+     *
+     * @param patient the patient to evaluate
+     * @param records all records for the patient
+     */
+    private void checkECG(Patient patient, List<PatientRecord> records) {
+        List<PatientRecord> ecg = filterByType(records, "ECG");
+        int window = 10;
+
+        for (int i = window; i < ecg.size(); i++) {
+            // Calculate sliding window average
+            double avg = 0;
+            for (int j = i - window; j < i; j++)
+                avg += ecg.get(j).getMeasurementValue();
+            avg /= window;
+
+            if (ecg.get(i).getMeasurementValue() > avg * 1.5)
+                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Abnormal ECG Peak", ecg.get(i).getTimestamp()));
+        }
+    }
+
+    /**
+     * Checks for manually triggered alerts from nurses or patients pressing
+     * the alert button. A measurement value of 1.0 indicates a triggered alert.
+     *
+     * @param patient the patient to evaluate
+     * @param records all records for the patient
+     */
+    private void checkTriggeredAlert(Patient patient, List<PatientRecord> records) {
+        for (PatientRecord r : filterByType(records, "Alert"))
+            if (r.getMeasurementValue() == 1.0)
+                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Triggered Alert", r.getTimestamp()));
+    }
+
+    /**
+     * Helper method to filter a list of patient records by record type.
+     *
+     * @param records the full list of records
+     * @param type    the record type to filter by
+     * @return a filtered list containing only records of the specified type
+     */
+    private List<PatientRecord> filterByType(List<PatientRecord> records, String type) {
+        List<PatientRecord> result = new ArrayList<>();
+        for (PatientRecord r : records)
+            if (r.getRecordType().equals(type))
+                result.add(r);
+        return result;
     }
 }
