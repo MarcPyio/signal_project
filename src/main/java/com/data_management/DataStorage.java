@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import com.alerts.AlertGenerator;
 
+import javax.xml.crypto.Data;
+
 /**
  * Manages storage and retrieval of patient data within a healthcare monitoring
  * system.
@@ -14,15 +16,15 @@ import com.alerts.AlertGenerator;
  */
 public class DataStorage {
     private Map<Integer, Patient> patientMap; // Stores patient objects indexed by their unique patient ID.
+    private static DataStorage INSTANCE;
 
     /**
      * Constructs a new instance of DataStorage, initializing the underlying storage
      * structure.
      */
-    public DataStorage() {
+    private DataStorage(){
         this.patientMap = new HashMap<>();
     }
-
     /**
      * Adds or updates patient data in the storage.
      * If the patient does not exist, a new Patient object is created and added to
@@ -64,6 +66,16 @@ public class DataStorage {
             return patient.getRecords(startTime, endTime);
         }
         return new ArrayList<>(); // return an empty list if no patient is found
+    }
+
+    /**retrives the Instance of data storage and if it doesn't exist create an instances
+     * @return the DataStorage object
+     */
+    public static DataStorage getINSTANCE() {
+        if (INSTANCE == null) {
+            INSTANCE = new DataStorage();
+        }
+        return INSTANCE;
     }
 
     /**

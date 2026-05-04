@@ -68,19 +68,30 @@ public class AlertGenerator {
     private void checkBloodPressure(Patient patient, List<PatientRecord> records) {
         List<PatientRecord> systolic = filterByType(records, "SystolicPressure");
         List<PatientRecord> diastolic = filterByType(records, "DiastolicPressure");
+        AlertFactory bpFactory = new BloodPressureAlertFactory(); // Instantiate the factory
 
         // Critical thresholds
         for (PatientRecord r : systolic) {
-            if (r.getMeasurementValue() > 180)
-                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Systolic BP Too High", r.getTimestamp()));
-            if (r.getMeasurementValue() < 90)
-                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Systolic BP Too Low", r.getTimestamp()));
+
+
+            if (r.getMeasurementValue() > 180) {
+                Alert myAlert = bpFactory.createAlert(String.valueOf(patient.getPatientId()), "Systolic BP Too High", r.getTimestamp());
+                triggerAlert(myAlert);
+            }
+                if (r.getMeasurementValue() < 90) {
+                    Alert myAlert = bpFactory.createAlert(String.valueOf(patient.getPatientId()), "Systolic BP Too Low", r.getTimestamp());
+                    triggerAlert(myAlert);
+                }
         }
         for (PatientRecord r : diastolic) {
-            if (r.getMeasurementValue() > 120)
-                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Diastolic BP Too High", r.getTimestamp()));
-            if (r.getMeasurementValue() < 60)
-                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Diastolic BP Too Low", r.getTimestamp()));
+            if (r.getMeasurementValue() > 120){
+                Alert myAlert = bpFactory.createAlert(String.valueOf(patient.getPatientId()), "Diastolic BP Too High", r.getTimestamp());
+                triggerAlert(myAlert);
+            }
+            if (r.getMeasurementValue() < 60){
+                Alert myAlert = bpFactory.createAlert(String.valueOf(patient.getPatientId()), "Diastolic BP Too Low", r.getTimestamp());
+                triggerAlert(myAlert);
+            }
         }
 
         // Trend alerts
@@ -97,15 +108,21 @@ public class AlertGenerator {
      * @param type    label for the type of pressure ("Systolic" or "Diastolic")
      */
     private void checkTrend(Patient patient, List<PatientRecord> records, String type) {
+        AlertFactory bpFactory = new BloodPressureAlertFactory(); // Instantiate the factory
         for (int i = 2; i < records.size(); i++) {
             double a = records.get(i - 2).getMeasurementValue();
             double b = records.get(i - 1).getMeasurementValue();
             double c = records.get(i).getMeasurementValue();
 
-            if (b - a > 10 && c - b > 10)
-                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), type + " BP Increasing", records.get(i).getTimestamp()));
-            if (a - b > 10 && b - c > 10)
-                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), type + " BP Decreasing", records.get(i).getTimestamp()));
+
+
+            if (b - a > 10 && c - b > 10){
+                Alert myAlert = bpFactory.createAlert(String.valueOf(patient.getPatientId()), type + " BP Increasing", records.get(i).getTimestamp());
+                triggerAlert(myAlert);}
+            if (a - b > 10 && b - c > 10) {
+                Alert myAlert = bpFactory.createAlert(String.valueOf(patient.getPatientId()), type + " BP Decreasing", records.get(i).getTimestamp());
+                triggerAlert(myAlert);
+            }
         }
     }
 
@@ -119,18 +136,22 @@ public class AlertGenerator {
      */
     private void checkBloodSaturation(Patient patient, List<PatientRecord> records, long now) {
         List<PatientRecord> satRecords = filterByType(records, "Saturation");
+        AlertFactory bsFactory = new BloodOxygenAlertFactory(); // Instantiate the factory
 
         for (PatientRecord r : satRecords) {
             // Low saturation alert
-            if (r.getMeasurementValue() < 92)
-                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Low Blood Saturation", r.getTimestamp()));
-
+            if (r.getMeasurementValue() < 92){
+                Alert myAlert = bsFactory.createAlert(String.valueOf(patient.getPatientId()), "Low Blood Saturation", r.getTimestamp());
+                triggerAlert(myAlert);
+            }
             // Rapid drop alert - check within 10 minute window
             long tenMinAgo = r.getTimestamp() - (10 * 60 * 1000);
             for (PatientRecord prev : satRecords) {
                 if (prev.getTimestamp() >= tenMinAgo && prev.getTimestamp() < r.getTimestamp()) {
-                    if (prev.getMeasurementValue() - r.getMeasurementValue() >= 5)
-                        triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Rapid Saturation Drop", r.getTimestamp()));
+                    if (prev.getMeasurementValue() - r.getMeasurementValue() >= 5) {
+                        Alert myAlert = bsFactory.createAlert(String.valueOf(patient.getPatientId()), "Rapid Saturation Drop", r.getTimestamp());
+                        triggerAlert(myAlert);
+                    }
                 }
             }
         }
@@ -148,6 +169,8 @@ public class AlertGenerator {
         boolean lowBP = false;
         boolean lowSat = false;
 
+        AlertFactory hhFactory = new HypotensiveHypoxemiaAlertFactory();
+
         for (PatientRecord r : filterByType(records, "SystolicPressure"))
             if (r.getMeasurementValue() < 90) lowBP = true;
 
@@ -155,8 +178,10 @@ public class AlertGenerator {
             if (r.getMeasurementValue() < 92) lowSat = true;
 
         // Trigger alert only if both conditions are met simultaneously
-        if (lowBP && lowSat)
-            triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Hypotensive Hypoxemia", System.currentTimeMillis()));
+        if (lowBP && lowSat){
+            Alert myAlert = hhFactory.createAlert(String.valueOf(patient.getPatientId()), "Hypotensive Hypoxemia", System.currentTimeMillis());
+            triggerAlert(myAlert);
+        }
     }
 
     /**
@@ -168,6 +193,7 @@ public class AlertGenerator {
      */
     private void checkECG(Patient patient, List<PatientRecord> records) {
         List<PatientRecord> ecg = filterByType(records, "ECG");
+        AlertFactory ecFactory = new ECGAlertFactory();
         int window = 10;
 
         for (int i = window; i < ecg.size(); i++) {
@@ -177,8 +203,10 @@ public class AlertGenerator {
                 avg += ecg.get(j).getMeasurementValue();
             avg /= window;
 
-            if (ecg.get(i).getMeasurementValue() > avg * 1.5)
-                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Abnormal ECG Peak", ecg.get(i).getTimestamp()));
+            if (ecg.get(i).getMeasurementValue() > avg * 1.5){
+                Alert myAlert = ecFactory.createAlert(String.valueOf(patient.getPatientId()), "Abnormal ECG Peak", ecg.get(i).getTimestamp());
+                triggerAlert(myAlert);
+            }
         }
     }
 
@@ -190,9 +218,12 @@ public class AlertGenerator {
      * @param records all records for the patient
      */
     private void checkTriggeredAlert(Patient patient, List<PatientRecord> records) {
+        AlertFactory manualFactory = new ManualAlertFactory();
         for (PatientRecord r : filterByType(records, "Alert"))
-            if (r.getMeasurementValue() == 1.0)
-                triggerAlert(new Alert(String.valueOf(patient.getPatientId()), "Triggered Alert", r.getTimestamp()));
+            if (r.getMeasurementValue() == 1.0){
+                Alert myAlert = manualFactory.createAlert(String.valueOf(patient.getPatientId()), "Triggered Alert", r.getTimestamp());
+                triggerAlert(myAlert);
+            }
     }
 
     /**
