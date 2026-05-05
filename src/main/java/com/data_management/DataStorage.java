@@ -71,7 +71,7 @@ public class DataStorage {
     /**retrives the Instance of data storage and if it doesn't exist create an instances
      * @return the DataStorage object
      */
-    public static DataStorage getINSTANCE() {
+    public static DataStorage getInstance() {
         if (INSTANCE == null) {
             INSTANCE = new DataStorage();
         }

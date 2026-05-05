@@ -39,6 +39,7 @@ public class HealthDataSimulator {
     private static OutputStrategy outputStrategy = new ConsoleOutputStrategy(); // Default output strategy
     private static final Random random = new Random();
     private static HealthDataSimulator INSTANCE;
+    public int testVariable = 0;
 
     private HealthDataSimulator(){};
 
