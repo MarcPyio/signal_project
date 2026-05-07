@@ -5,7 +5,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import com.cardio_generator.generators.AlertGenerator;
-
 import com.cardio_generator.generators.BloodPressureDataGenerator;
 import com.cardio_generator.generators.BloodSaturationDataGenerator;
 import com.cardio_generator.generators.BloodLevelsDataGenerator;
@@ -28,27 +27,40 @@ import java.util.ArrayList;
 /**
  * Main simulator class responsible for generating and routing synthetic health data.
  *
- * <p>This class orgnaises the coexsisting generation of various health metrics (ECG, blood
+ * <p>This class organises the concurrent generation of various health metrics (ECG, blood
  * pressure, etc.) for a specified number of patients and outputs them via a chosen strategy.
+ *
+ * <p>Implemented as a thread-safe Singleton: only one instance exists for the
+ * lifetime of the application. Obtain it via {@link #getInstance()}.
  */
-
 public class HealthDataSimulator {
 
-    private static int patientCount = 50; // Default number of patients
+    private static volatile HealthDataSimulator instance;
+
+    private static int patientCount = 50;
     private static ScheduledExecutorService scheduler;
-    private static OutputStrategy outputStrategy = new ConsoleOutputStrategy(); // Default output strategy
+    private static OutputStrategy outputStrategy = new ConsoleOutputStrategy();
     private static final Random random = new Random();
-    private static HealthDataSimulator INSTANCE;
-    public int testVariable = 0;
 
-    private HealthDataSimulator(){};
+    /** Private constructor prevents direct instantiation. */
+    private HealthDataSimulator() {}
 
+    /**
+     * Returns the singleton instance of HealthDataSimulator, creating it on the first call.
+     *
+     * <p>Thread-safe via double-checked locking.
+     *
+     * @return the singleton HealthDataSimulator instance
+     */
     public static HealthDataSimulator getInstance() {
-        if (INSTANCE == null) {
-            INSTANCE = new HealthDataSimulator();
+        if (instance == null) {
+            synchronized (HealthDataSimulator.class) {
+                if (instance == null) {
+                    instance = new HealthDataSimulator();
+                }
+            }
         }
-
-        return INSTANCE;
+        return instance;
     }
 
     /**
@@ -57,15 +69,16 @@ public class HealthDataSimulator {
      * @param args command-line arguments for configuration
      * @throws IOException if file system operations for output strategies fail
      */
-
     public static void main(String[] args) throws IOException {
+        // Ensure the singleton is initialised before use
+        getInstance();
 
         parseArguments(args);
 
         scheduler = Executors.newScheduledThreadPool(patientCount * 4);
 
         List<Integer> patientIds = initializePatientIds(patientCount);
-        Collections.shuffle(patientIds); // Randomize the order of patient IDs
+        Collections.shuffle(patientIds);
 
         scheduleTasksForPatients(patientIds);
     }
@@ -76,7 +89,6 @@ public class HealthDataSimulator {
      * @param args the raw command-line arguments
      * @throws IOException if a specified output directory cannot be created
      */
-
     private static void parseArguments(String[] args) throws IOException {
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -89,8 +101,8 @@ public class HealthDataSimulator {
                         try {
                             patientCount = Integer.parseInt(args[++i]);
                         } catch (NumberFormatException e) {
-                            System.err
-                                    .println("Error: Invalid number of patients. Using default value: " + patientCount);
+                            System.err.println(
+                                    "Error: Invalid number of patients. Using default value: " + patientCount);
                         }
                     }
                     break;
@@ -109,7 +121,6 @@ public class HealthDataSimulator {
                         } else if (outputArg.startsWith("websocket:")) {
                             try {
                                 int port = Integer.parseInt(outputArg.substring(10));
-                                // Initialize your WebSocket output strategy here
                                 outputStrategy = new WebSocketOutputStrategy(port);
                                 System.out.println("WebSocket output will be on port: " + port);
                             } catch (NumberFormatException e) {
@@ -119,11 +130,11 @@ public class HealthDataSimulator {
                         } else if (outputArg.startsWith("tcp:")) {
                             try {
                                 int port = Integer.parseInt(outputArg.substring(4));
-                                // Initialize your TCP socket output strategy here
                                 outputStrategy = new TcpOutputStrategy(port);
                                 System.out.println("TCP socket output will be on port: " + port);
                             } catch (NumberFormatException e) {
-                                System.err.println("Invalid port for TCP output. Please specify a valid port number.");
+                                System.err.println(
+                                        "Invalid port for TCP output. Please specify a valid port number.");
                             }
                         } else {
                             System.err.println("Unknown output type. Using default (console).");
@@ -151,8 +162,6 @@ public class HealthDataSimulator {
         System.out.println("                             'tcp:<port>' for TCP socket output.");
         System.out.println("Example:");
         System.out.println("  java HealthDataSimulator --patient-count 100 --output websocket:8080");
-        System.out.println(
-                "  This command simulates data for 100 patients and sends the output to WebSocket clients connected to port 8080.");
     }
 
     /**
@@ -161,7 +170,6 @@ public class HealthDataSimulator {
      * @param patientCount the total number of patients to generate IDs for
      * @return a list containing IDs from 1 to {@code patientCount}
      */
-
     private static List<Integer> initializePatientIds(int patientCount) {
         List<Integer> patientIds = new ArrayList<>();
         for (int i = 1; i <= patientCount; i++) {
@@ -175,7 +183,6 @@ public class HealthDataSimulator {
      *
      * @param patientIds the list of patient IDs to be processed
      */
-
     private static void scheduleTasksForPatients(List<Integer> patientIds) {
         ECGDataGenerator ecgDataGenerator = new ECGDataGenerator(patientCount);
         BloodSaturationDataGenerator bloodSaturationDataGenerator = new BloodSaturationDataGenerator(patientCount);
@@ -195,12 +202,19 @@ public class HealthDataSimulator {
     /**
      * Schedules a repeating task with a randomized initial delay.
      *
-     * @param task the runnable task to execute
-     * @param period the time between successive executions
+     * @param task     the runnable task to execute
+     * @param period   the time between successive executions
      * @param timeUnit the time unit of the period parameter
      */
-
     private static void scheduleTask(Runnable task, long period, TimeUnit timeUnit) {
         scheduler.scheduleAtFixedRate(task, random.nextInt(5), period, timeUnit);
+    }
+
+    /**
+     * Resets the singleton instance. For use in unit tests only —
+     * do NOT call this in production code.
+     */
+    static void resetInstance() {
+        instance = null;
     }
 }
