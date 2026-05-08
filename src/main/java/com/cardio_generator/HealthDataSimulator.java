@@ -41,6 +41,7 @@ public class HealthDataSimulator {
     private static ScheduledExecutorService scheduler;
     private static OutputStrategy outputStrategy = new ConsoleOutputStrategy();
     private static final Random random = new Random();
+    public int testVariable = 0;
 
     /** Private constructor prevents direct instantiation. */
     private HealthDataSimulator() {}
