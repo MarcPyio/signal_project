@@ -17,6 +17,14 @@ public class WebSocketOutputStrategy implements OutputStrategy {
 
     @Override
     public void output(int patientId, long timestamp, String label, String data) {
+        if (label == null || data == null || label.trim().isEmpty()){
+            System.err.println("Invalid data received for broadcasting. Skipping.");
+            return;
+        }
+        //prevent split(,) from wrongly splitting
+        String safeLabel = label.replace(",", "_");
+        String safeData = data.replace(",", "_");
+
         String message = String.format("%d,%d,%s,%s", patientId, timestamp, label, data);
         // Broadcast the message to all connected clients
         for (WebSocket conn : server.getConnections()) {

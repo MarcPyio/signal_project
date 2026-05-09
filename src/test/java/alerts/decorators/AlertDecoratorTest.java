@@ -1,4 +1,4 @@
-package data_management;
+package alerts.decorators;
 
 import com.alerts.BloodPressureAlert;
 import com.alerts.Alert;

@@ -1,7 +1,6 @@
-package data_management;
+package cardio_generator;
 
 import com.cardio_generator.HealthDataSimulator;
-import com.data_management.DataStorage;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

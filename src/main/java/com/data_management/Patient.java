@@ -27,7 +27,7 @@ public class Patient {
     /**
      * Adds a new record to this patient's list of medical records.
      * The record is created with the specified measurement value, record type, and
-     * timestamp.
+     * timestamp. Duplicate records (exact same type and timestamp) are ignored.
      *
      * @param measurementValue the measurement value to store in the record
      * @param recordType       the type of record, e.g., "HeartRate",
@@ -35,7 +35,19 @@ public class Patient {
      * @param timestamp        the time at which the measurement was taken, in
      *                         milliseconds since UNIX epoch
      */
-    public void addRecord(double measurementValue, String recordType, long timestamp) {
+    public synchronized void addRecord(double measurementValue, String recordType, long timestamp) {
+        //Duplicate Check
+        // We iterate backwards because if a duplicate arrives from the stream,
+        for (int i = patientRecords.size() - 1; i >= 0; i--) {
+            PatientRecord existingRecord = patientRecords.get(i);
+
+            if (existingRecord.getTimestamp() == timestamp &&
+                    existingRecord.getRecordType().equals(recordType)) {
+                // We found an exact match for time and type. Ignore the duplicate.
+                return;
+            }
+        }
+        //Add the verified unique record
         PatientRecord record = new PatientRecord(this.patientId, measurementValue, recordType, timestamp);
         this.patientRecords.add(record);
     }
@@ -51,8 +63,7 @@ public class Patient {
      * @return a list of PatientRecord objects that fall within the specified time
      *         range
      */
-    public List<PatientRecord> getRecords(long startTime, long endTime) {
-        // TODO Implement and test this method
+    public synchronized List<PatientRecord> getRecords(long startTime, long endTime) {
         List<PatientRecord> filteredRecords = new ArrayList<>();
         for (PatientRecord record : this.patientRecords) {
             // Check if the record timestamp is between startTime and endTime

@@ -1,5 +1,7 @@
 package com.data_management;
 
+import org.java_websocket.WebSocket;
+
 import java.io.IOException;
 
 public interface DataReader {

@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import com.alerts.AlertGenerator;
 
 /**
@@ -21,7 +23,7 @@ public class DataStorage {
 
     /** Private constructor prevents direct instantiation. */
     private DataStorage() {
-        this.patientMap = new HashMap<>();
+        this.patientMap = new ConcurrentHashMap<>();
     }
 
     /**
@@ -54,11 +56,13 @@ public class DataStorage {
      *                         milliseconds since the Unix epoch
      */
     public void addPatientData(int patientId, double measurementValue, String recordType, long timestamp) {
-        Patient patient = patientMap.get(patientId);
-        if (patient == null) {
-            patient = new Patient(patientId);
-            patientMap.put(patientId, patient);
-        }
+        // computeIfAbsent checks for the key and creates the object atomically.
+        // This prevents two threads from accidentally creating two different
+        // Patient objects for the same ID at the exact same millisecond.
+        Patient patient = patientMap.computeIfAbsent(patientId, k -> new Patient(k));
+
+        // NOTE: You must also ensure that the `addRecord` method inside your
+        // Patient class is thread-safe and checks for duplicates!
         patient.addRecord(measurementValue, recordType, timestamp);
     }
 
@@ -92,7 +96,7 @@ public class DataStorage {
      * Resets the singleton instance. For use in unit tests only —
      * do NOT call this in production code.
      */
-    static void resetInstance() {
+    public static void resetInstance() {
         instance = null;
     }
 
