@@ -1,6 +1,6 @@
 # Project Members in Group 67
 - Student ID: 6429774
-- Student ID: 6453667
+- Student ID: 6435667
 
 # Cardio Data Simulator
 
